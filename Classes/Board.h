@@ -15,7 +15,6 @@
 
 USING_NS_CC;
 using namespace ui;
-using namespace std;
 
 typedef Scene* (*SceneConstructors) ();
 
@@ -26,15 +25,25 @@ public:
 
     virtual bool init();
     
+	void loadMaxScores();
+	void saveMaxScores();
     void initTiles();
+	void initScore();
     void initPlayer();
     void initClickListener();
     void startDice();
     void stopDice();
+
+	void updateScore(int newScore);
     
     int actualNumber = 1;
+	int score = 0;
+
+	bool busy = false;
     
     Sprite* playerSprite;
+
+	Label* scoreLabel;
     
     vector<SceneConstructors> sceneConstructors =
     {
@@ -45,15 +54,22 @@ public:
         Stacking::createScene,
         Counting::createScene
     };
+
     vector<string> sceneNames =
     {
-        "Jumping Hippo",
-        "Chips",
-        "Drow",
         "Gluttony",
-        "Stacking",
         "Counting"
     };
+
+	vector<int> maxScores = {
+		0,
+		0
+	};
+
+	vector<string> maxNames = {
+		"CHR",
+		"CHR"
+	};
     
     void stopDiceAndMove();
     

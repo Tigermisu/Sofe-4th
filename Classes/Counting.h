@@ -9,6 +9,7 @@
 #define __Counting_SCENE_H__
 
 #include "cocos2d.h"
+#include "SimpleAudioEngine.h"
 
 USING_NS_CC;
 
@@ -19,17 +20,21 @@ public:
     
     virtual bool init();
     
-    Sprite* plus;
-    Sprite* minus;
+	cocos2d::Sprite* plus;
+	cocos2d::Sprite* minus;
     
     Vector<Sprite*> array;
+
+	CocosDenshion::SimpleAudioEngine* audio;
     
     int circles;
     int squares;
     int triangles;
+	int otherFigure;
     int spawned;
     int answer;
     int counter;
+	int goodRounds = 0;
     Label* label;
     
     void initVariables();

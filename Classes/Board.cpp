@@ -1,3 +1,6 @@
+#include <fstream>
+#include <iostream>
+
 #include "Board.h"
 #include "SimpleAudioEngine.h"
 
@@ -15,12 +18,53 @@ bool Board::init()
         return false;
     }
     
+	loadMaxScores();
     initTiles();
+	initScore();
     initPlayer();
     initClickListener();
     startDice();
     
     return true;
+}
+
+void Board::loadMaxScores() {
+	ifstream scoresFile;
+	string line;
+
+	scoresFile.open("maxscores.txt");
+
+	if (scoresFile.is_open()) {
+		cout << "Loading scores from file" << endl;
+		int alternate = 0;
+		while (getline(scoresFile, line))
+		{
+			if (alternate % 2 == 0) {
+				maxScores[alternate / 2] = stoi(line);
+			} else {
+				maxNames[alternate / 2] = line;
+			}
+
+			alternate++;
+		}
+
+		scoresFile.close();	
+	} else {
+		cout << "Creating scores file" << endl;
+		saveMaxScores();
+	}
+}
+
+void Board::saveMaxScores() {
+	ofstream scoresFile;
+	cout << "Saving max scores" << endl;
+	scoresFile.open("maxscores.txt");
+	for (int i = 0; i < 2; i++) {
+		scoresFile << maxScores[i] << endl;
+		scoresFile << maxNames[i] << endl;
+	}
+	scoresFile.close();
+	cout << "Saved max scores" << endl;
 }
 
 void Board::initTiles()
@@ -56,12 +100,42 @@ void Board::initTiles()
         
         //SceneLabel
         auto label = Label::create();
+		std::stringstream labelTitle;
+
+		labelTitle << sceneNames[(i - 1) % 2] << endl << maxNames[(i - 1) % 2] << ": " << maxScores[(i - 1) % 2];
+
         label->setScale(1.f/0.85, 2.f);
         label->setPosition(Vec2(tile->getContentSize().width/2, 0));
         
         tile->addChild(label);
-        label->setString(sceneNames[i-1]);
+        label->setString(labelTitle.str().c_str());
     }
+}
+
+void Board::initScore() {
+	Size screenSize = Director::getInstance()->getVisibleSize();
+
+	scoreLabel = Label::create();
+
+	scoreLabel->setPosition(Vec2(10, screenSize.height - 10));
+
+	addChild(scoreLabel);
+
+	scoreLabel->setScale(2);
+
+	scoreLabel->setAnchorPoint(Vec2(0, 1));
+
+	updateScore(0);
+}
+
+void Board::updateScore(int newScore) {
+	score = newScore;
+
+	std::stringstream scoreStr;
+
+	scoreStr << "Score: " << score;
+
+	scoreLabel->setString(scoreStr.str().c_str());
 }
 
 void Board::initPlayer()
@@ -82,7 +156,10 @@ void Board::initClickListener()
     auto mouseListener = EventListenerTouchOneByOne::create();
     
     mouseListener->onTouchBegan = [=](Touch* touch, Event* event){
-        stopDiceAndMove();
+		if (!busy) {
+			busy = true;
+			stopDiceAndMove();
+		}
         return true;
     };
     mouseListener->onTouchMoved = [=](Touch* touch, Event* event){};
@@ -95,41 +172,76 @@ void Board::initClickListener()
 void Board::stopDiceAndMove()
 {
     stopDice();
+
+	cocos2d::Vector<FiniteTimeAction*> actions;
     
     Size screenSize = Director::getInstance()->getVisibleSize();
     
     Vec2 finalPosition = Vec2(screenSize.width / 7 * actualNumber + firstTileSize.width / 2, playerSprite->getPosition().y);
     
     auto jumps = JumpTo::create(actualNumber * 0.6, finalPosition, 60, actualNumber);
+
+
+	actions.pushBack(DelayTime::create(0.05));
+
+	actions.pushBack(CallFunc::create([=]()->void {
+		playerSprite->setTexture("p_jump.png");
+	}));
+
+	actions.pushBack(DelayTime::create(0.5));
+
+	actions.pushBack(CallFunc::create([=]()->void {
+		playerSprite->setTexture("p_stand.png");
+	}));
+
+	auto sequence = Sequence::create(actions);
+	auto repeater = Repeat::create(sequence, actualNumber);
     
     playerSprite->runAction(jumps);
+	playerSprite->runAction(repeater);
     
-    schedule([=](float dt){
-        Director::getInstance()->pushScene(sceneConstructors[actualNumber-1]());
-    }, actualNumber, 1, 0, "changeScene");
+	if (actualNumber % 2 == 0) {
+		schedule([=](float dt) {
+			Director::getInstance()->pushScene(sceneConstructors[5]()); // 5 for counting
+			busy = false;
+			startDice();
+		}, actualNumber, 0, 0, "changeScene");
+	} else {
+		schedule([=](float dt) {
+			Director::getInstance()->pushScene(sceneConstructors[3]()); // 3 for gluttony
+			busy = false;
+			startDice();
+		}, actualNumber, 0, 0, "changeScene");
+	}
 }
 
 void Board::startDice()
 {
-    Size screenSize = Director::getInstance()->getVisibleSize();
-    auto diceLabel = Label::create();
-    
-    diceLabel->setPosition(Vec2(screenSize/3.f * 2.f));
-    diceLabel->setSystemFontSize(40);
-    
-    addChild(diceLabel);
-    
-    schedule([=](float dt){
+	Size screenSize = Director::getInstance()->getVisibleSize();
 
-        actualNumber %= sceneConstructors.size();
-        actualNumber++;
-        
-        string text = "";
-        text.push_back(actualNumber+'0');
-        diceLabel->setString(text);
-        
-    }, 0.1f, -1, 0, "changeDiceNumber");
-    
+	std::vector<string> spriteNames;
+
+	for (int i = 1; i <= 6; i++) {
+		string name = "dice";
+		name.push_back(i + '0');
+		name = name + ".png";
+		spriteNames.push_back(name);
+	}
+
+	auto sprite = Sprite::create(spriteNames[0]);
+
+	sprite->setPosition(Vec2(screenSize / 3.f * 2.f));
+
+	addChild(sprite);
+
+	schedule([=](float dt) {
+
+		actualNumber %= sceneConstructors.size();
+		actualNumber++;
+		
+		sprite->setTexture(spriteNames[actualNumber-1]);
+
+	}, 0.1f, -1, 0, "changeDiceNumber");
 }
 
 void Board::stopDice()
